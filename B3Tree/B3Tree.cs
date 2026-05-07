@@ -1,0 +1,605 @@
+﻿namespace B3Tree
+{
+    public enum COLOR
+    {
+        RED,
+        BLACK
+    }
+    public class B3TreeNode<K, V> where K : IComparable
+    {
+        public K[] Keys;
+        public V[] Values;
+        public B3TreeNode<K, V>? Left;
+        public B3TreeNode<K, V>? Right;
+        public COLOR Color;
+        public int Len;
+        public B3TreeNode(int capacity)
+        {
+            Keys = new K[capacity];
+            Values = new V[capacity];
+            Len = 0;
+            Color = COLOR.RED;
+        }
+        public void Shrink(int newLen)
+        {
+            for (int i = newLen; i < this.Len; ++i)
+            {
+                this.Keys[i] = default!;
+                this.Values[i] = default!;
+            }
+            this.Len = newLen;
+        }
+    }
+    public class B3Tree<K, V> where K : IComparable
+    {
+        private readonly int MAX; // capacity
+        private readonly int MIN; // quarter of capacity
+        private readonly int HALF; // half of capacity
+        private B3TreeNode<K, V> _root;
+        private bool _isDB = false; // label for double black
+        private bool _handleLeaf = false; // predecessor/successor of a leaf node is its parent
+        public V? Deleted = default!;
+        public B3Tree(int min)
+        {
+            MIN = min < 1 ? 1 : min;
+            HALF = 2 * MIN;
+            MAX = 4 * MIN;
+            _root = new B3TreeNode<K, V>(MAX);
+            _root.Color = COLOR.BLACK;
+        }
+        public V GetValue(K key)
+        {
+            return GetValueRecur(key, _root);
+        }
+        public bool HasKey(K key)
+        {
+            return HasValueRecur(key, _root);
+        }
+        public void Add(K key, V value)
+        {
+            _root = AddRecur(key, value, _root);
+            _root.Color = COLOR.BLACK;
+        }
+        public void Remove(K key)
+        {
+            _handleLeaf = false;
+            _isDB = false;
+            Deleted = default!;
+            _root = RemoveRecur(key, _root);
+            _handleLeaf = false;
+            _isDB = false;
+            _root.Color = COLOR.BLACK;
+        }
+        private static V GetValueRecur(K key, B3TreeNode<K, V> node)
+        {
+            if (node.Left != null && key.CompareTo(node.Keys[0]) < 0)
+            {
+                return GetValueRecur(key, node.Left);
+            }
+            if (node.Right != null && key.CompareTo(node.Keys[node.Len - 1]) > 0)
+            {
+                return GetValueRecur(key, node.Right);
+            }
+            int lo = 0;
+            int hi = node.Len - 1;
+            int mid = (lo + hi) / 2;
+            while (true)
+            {
+                if (lo > hi)
+                {
+                    throw new IndexOutOfRangeException();
+                }
+                int comp = key.CompareTo(node.Keys[mid]);
+                if (comp == 0)
+                {
+                    return node.Values[mid];
+                }
+                if (comp < 0)
+                {
+                    hi = mid - 1;
+                }
+                if (comp > 0)
+                {
+                    lo = mid + 1;
+                }
+                mid = (lo + hi) / 2;
+            }
+        }
+        private static bool HasValueRecur(K key, B3TreeNode<K, V> node)
+        {
+            if (node.Left != null && key.CompareTo(node.Keys[0]) < 0)
+            {
+                return HasValueRecur(key, node.Left);
+            }
+            if (node.Right != null && key.CompareTo(node.Keys[node.Len - 1]) > 0)
+            {
+                return HasValueRecur(key, node.Right);
+            }
+            int lo = 0;
+            int hi = node.Len - 1;
+            int mid = (lo + hi) / 2;
+            while (true)
+            {
+                if (lo > hi)
+                {
+                    return false;
+                }
+                int comp = key.CompareTo(node.Keys[mid]);
+                if (comp == 0)
+                {
+                    return true;
+                }
+                if (comp < 0)
+                {
+                    hi = mid - 1;
+                }
+                if (comp > 0)
+                {
+                    lo = mid + 1;
+                }
+                mid = (lo + hi) / 2;
+            }
+        }
+        private B3TreeNode<K, V> AddRecur(K key, V value, B3TreeNode<K, V> node)
+        {
+            if (node.Left != null && key.CompareTo(node.Keys[0]) < 0)
+            {
+                node.Left = AddRecur(key, value, node.Left);
+                node = ResolveDoubleRed(node);
+                return node;
+            }
+            if (node.Right != null && key.CompareTo(node.Keys[node.Len - 1]) > 0)
+            {
+                node.Right = AddRecur(key, value, node.Right);
+                node = ResolveRightRed(node);
+                return node;
+            }
+            int len = node.Len;
+            bool found = false;
+            int idx = FindIndex(node, key, out found);
+            if (found)
+            {
+                // update
+                node.Values[idx] = value;
+                return node;
+            }
+            if (len < MAX)
+            {
+                // insert
+                for (int i = len; i > idx; --i)
+                {
+                    node.Keys[i] = node.Keys[i - 1];
+                    node.Values[i] = node.Values[i - 1];
+                }
+                node.Keys[idx] = key;
+                node.Values[idx] = value;
+                node.Len += 1;
+                return node;
+            }
+            // split
+            B3TreeNode<K, V> newNode = SplitNode(node, idx, key, value);
+            node.Right = Prepend(newNode, node.Right);
+            node = ResolveRightRed(node);
+            return node;
+        }
+        private B3TreeNode<K, V> SplitNode(B3TreeNode<K, V> node, int idxAt, K key, V value)
+        {
+            B3TreeNode<K, V> newNode = new(MAX);
+            if (idxAt <= HALF) // in old node
+            {
+                for (int i = HALF, j = 0; i < MAX; ++i, ++j)
+                {
+                    newNode.Keys[j] = node.Keys[i];
+                    newNode.Values[j] = node.Values[i];
+                }
+                for (int i = HALF; i > idxAt; --i)
+                {
+                    node.Keys[i] = node.Keys[i - 1];
+                    node.Values[i] = node.Values[i - 1];
+                }
+                node.Keys[idxAt] = key;
+                node.Values[idxAt] = value;
+            }
+            else // in new node
+            {
+                int j = 0;
+                for (int i = HALF + 1; i < idxAt; ++i, ++j)
+                {
+                    newNode.Keys[j] = node.Keys[i];
+                    newNode.Values[j] = node.Values[i];
+                }
+                newNode.Keys[j] = key;
+                newNode.Values[j] = value;
+                ++j;
+                for (int i = idxAt; i < MAX; ++i, ++j)
+                {
+                    newNode.Keys[j] = node.Keys[i];
+                    newNode.Values[j] = node.Values[i];
+                }
+            }
+            node.Shrink(HALF + 1);
+            newNode.Len = HALF;
+            return newNode;
+        }
+        private B3TreeNode<K, V> RemoveRecur(K key, B3TreeNode<K, V> node)
+        {
+            if (node.Left != null && key.CompareTo(node.Keys[0]) < 0)
+            {
+                node.Left = RemoveRecur(key, node.Left);
+                if (_handleLeaf)
+                {
+                    HandleLeftLeafOnDelete(node);
+                    _handleLeaf = false;
+                }
+                node = ResolveDB(node, node.Left);
+                return node;
+            }
+            if (node.Right != null && key.CompareTo(node.Keys[node.Len - 1]) > 0)
+            {
+                node.Right = RemoveRecur(key, node.Right);
+                if (_handleLeaf)
+                {
+                    HandleRightLeafOnDelete(node);
+                    _handleLeaf = false;
+                }
+                node = ResolveDB(node, node.Right);
+                return node;
+            }
+            bool found = false;
+            int idx = FindIndex(node, key, out found);
+            if (!found)
+            {
+                // search miss, do nothing
+                return node;
+            }
+            this.Deleted = node.Values[idx];
+            for (int i = idx; i < node.Len - 1; ++i)
+            {
+                node.Keys[i] = node.Keys[i + 1];
+                node.Values[i] = node.Values[i + 1];
+            }
+            node.Shrink(node.Len - 1);
+            if (node.Len >= MIN)
+            {
+                return node;
+            }
+            // Node contains too few elements.
+            // Leaf
+            if (node.Left == null && node.Right == null)
+            {
+                _handleLeaf = true;
+                return node;
+            }
+            // One child, only possibility is Left Red for LL RB tree.
+            if (node.Left != null && node.Right == null)
+            {
+                HandleLeftLeafOnDelete(node);
+                return node;
+            }
+            // two children, borrow or merge with its successor, the min of the right sub tree
+            node.Right = HandleWithNextOnDelete(node, node.Right!);
+            node = ResolveDB(node, node.Right);
+            return node;
+        }
+        // Left leaf is short or the parent is short
+        private void HandleLeftLeafOnDelete(B3TreeNode<K, V> node)
+        {
+            int sumLen = node.Len + node.Left!.Len;
+            if (sumLen < HALF + MIN)
+            {
+                // merge from Left child
+                MergeFromPre(node, node.Left);
+                _isDB = (node.Left.Color == COLOR.BLACK);
+                node.Left = null;
+            }
+            else
+            {
+                if (node.Len < MIN)
+                {
+                    // node borrows from Left
+                    BorrowFromPre(node, node.Left);
+                }
+                else
+                {
+                    // Left borrows from node
+                    BorrowFromNext(node.Left, node);
+                }
+                _isDB = false;
+            }
+        }
+        // Right leaf is short.
+        private void HandleRightLeafOnDelete(B3TreeNode<K, V> node)
+        {
+            if (node.Right!.Len < HALF)
+            {
+                // merge right child into this node by append
+                MergeFromNext(node, node.Right);
+                _isDB = (node.Right.Color == COLOR.BLACK);
+                node.Right = null;
+            }
+            else
+            {
+                // Right leaf borrows from this node
+                BorrowFromPre(node.Right, node);
+                _isDB = false;
+            }
+        }
+        private B3TreeNode<K, V>? HandleWithNextOnDelete(B3TreeNode<K, V> pNode, B3TreeNode<K, V> curNode)
+        {
+            if (curNode.Left == null)
+            {
+                if (curNode.Len < HALF)
+                {
+                    // merge
+                    MergeFromNext(pNode, curNode);
+                    _isDB = (curNode.Color == COLOR.BLACK);
+                    return null;
+                }
+                else
+                {
+                    // pNode borrow from curNode
+                    BorrowFromNext(pNode, curNode);
+                    _isDB = false;
+                    return curNode;
+                }
+            }
+            curNode.Left = HandleWithNextOnDelete(pNode, curNode.Left!);
+            curNode = ResolveDB(curNode, curNode.Left);
+            return curNode;
+        }
+        // Add a new node as the smallest to the root
+        private static B3TreeNode<K, V> Prepend(B3TreeNode<K, V> newNode, B3TreeNode<K, V>? root)
+        {
+            if (root == null)
+            {
+                return newNode;
+            }
+            root.Left = Prepend(newNode, root.Left);
+            root = ResolveDoubleRed(root);
+            return root;
+        }
+        private B3TreeNode<K, V> ResolveDB(B3TreeNode<K, V> parent, B3TreeNode<K, V>? child)
+        {
+            if (!_isDB)
+            {
+                return parent;
+            }
+            if (GetColor(child) == COLOR.RED)
+            {
+                child!.Color = COLOR.BLACK;
+                _isDB = false;
+                return parent;
+            }
+            // Black and DB
+            if (parent.Left == child)
+            {
+                COLOR pc = parent.Color;
+                COLOR px = GetColor(parent.Right!.Left);
+                B3TreeNode<K, V> nd = LeftRotation(parent);
+                if (px == COLOR.BLACK)
+                {
+                    nd.Left!.Color = COLOR.RED;
+                    _isDB = (pc == COLOR.BLACK);
+                    return nd;
+                }
+                else
+                {
+                    nd.Left = LeftRotation(nd.Left!);
+                    nd = RightRotation(nd);
+                    nd.Left!.Color = COLOR.BLACK;
+                    nd.Color = pc;
+                    _isDB = false;
+                    return nd;
+                }
+            }
+            else // right
+            {
+                if (parent.Color == COLOR.RED)
+                {
+                    if (GetColor(parent.Left!.Left) == COLOR.RED)
+                    {
+                        var nd = RightRotation(parent);
+                        nd.Left!.Color = COLOR.BLACK;
+                        nd.Right!.Color = COLOR.BLACK;
+                        nd.Color = COLOR.RED;
+                        _isDB = false;
+                        return nd;
+                    }
+                    else
+                    {
+                        parent.Color = COLOR.BLACK;
+                        parent.Left.Color = COLOR.RED;
+                        _isDB = false;
+                        return parent;
+                    }
+                }
+                else // parent is black
+                {
+                    if (parent.Left!.Color == COLOR.BLACK)
+                    {
+                        if (GetColor(parent.Left.Left) == COLOR.BLACK)
+                        {
+                            parent.Left.Color = COLOR.RED;
+                            _isDB = true;
+                            return parent;
+                        }
+                        else
+                        {
+                            var nd = RightRotation(parent);
+                            nd.Left!.Color = COLOR.BLACK;
+                            _isDB = false;
+                            return nd;
+                        }
+                    }
+                    else
+                    {
+                        var nd = RightRotation(parent);
+                        nd.Color = COLOR.BLACK;
+                        nd.Right!.Left!.Color = COLOR.RED;
+                        if (IsDoubleRed(nd.Right.Left))
+                        {
+                            nd.Right = RightRotation(nd.Right);
+                            nd.Right.Left!.Color = COLOR.BLACK;
+                            nd = LeftRotation(nd);
+                            nd.Color = COLOR.BLACK;
+                            nd.Left!.Color = COLOR.RED;
+                        }
+                        _isDB = false;
+                        return nd;
+                    }
+                }
+            }
+        }
+        private static int FindIndex(B3TreeNode<K, V> node, K key, out bool found)
+        {
+            int lo = 0;
+            int hi = node.Len - 1;
+            int mid = (lo + hi) / 2;
+            while (true)
+            {
+                if (lo > hi)
+                {
+                    found = false;
+                    return lo;
+                }
+                int comp = key.CompareTo(node.Keys[mid]);
+                if (comp == 0)
+                {
+                    found = true;
+                    return mid;
+                }
+                if (comp < 0)
+                {
+                    hi = mid - 1;
+                }
+                else
+                {
+                    lo = mid + 1;
+                }
+                mid = (lo + hi) / 2;
+            }
+        }
+        private static B3TreeNode<K, V> LeftRotation(B3TreeNode<K, V> node)
+        {
+            var tmp = node.Right;
+            node.Right = node.Right!.Left;
+            tmp!.Left = node;
+            return tmp;
+        }
+        private static B3TreeNode<K, V> RightRotation(B3TreeNode<K, V> node)
+        {
+            var tmp = node.Left;
+            node.Left = node.Left!.Right;
+            tmp!.Right = node;
+            return tmp;
+        }
+        private static COLOR GetColor(B3TreeNode<K, V>? node)
+        {
+            if (node == null)
+            {
+                return COLOR.BLACK;
+            }
+            return node.Color;
+        }
+        private static bool IsDoubleRed(B3TreeNode<K, V>? node)
+        {
+            if (GetColor(node) == COLOR.RED && GetColor(node!.Left) == COLOR.RED)
+            {
+                return true;
+            }
+            return false;
+        }
+        private static B3TreeNode<K, V> ResolveDoubleRed(B3TreeNode<K, V> node)
+        {
+            if (IsDoubleRed(node.Left))
+            {
+                node = RightRotation(node);
+                node.Left!.Color = COLOR.BLACK;
+            }
+            return node;
+        }
+        private static B3TreeNode<K, V> ResolveRightRed(B3TreeNode<K, V> node)
+        {
+            if (GetColor(node.Right) == COLOR.RED)
+            {
+                if (GetColor(node.Left) == COLOR.RED) // flip color
+                {
+                    node.Left!.Color = COLOR.BLACK;
+                    node.Right!.Color = COLOR.BLACK;
+                    node.Color = COLOR.RED;
+                }
+                else
+                {
+                    COLOR c = node.Color;
+                    node = LeftRotation(node);
+                    node.Left!.Color = COLOR.RED;
+                    node.Color = c;
+                }
+            }
+            return node;
+        }
+        private static void ArrayShiftLeft<T>(T[] arr, int curLen, int shiftLeft)
+        {
+            for (int i = 0; i < curLen - shiftLeft; ++i)
+            {
+                arr[i] = arr[i + shiftLeft];
+            }
+        }
+        private static void ArrayShiftRight<T>(T[] arr, int curLen, int shiftRight)
+        {
+            for (int i = curLen - 1; i >= 0; --i)
+            {
+                arr[i + shiftRight] = arr[i];
+            }
+        }
+        private static void BorrowFromPre(B3TreeNode<K, V> thisNode, B3TreeNode<K, V> pre)
+        {
+            int sumLen = pre.Len + thisNode.Len;
+            int rightShift = sumLen / 2 - thisNode.Len;
+            ArrayShiftRight(thisNode.Keys, thisNode.Len, rightShift);
+            ArrayShiftRight(thisNode.Values, thisNode.Len, rightShift);
+            for (int i = 0, j = pre.Len - rightShift; i < rightShift; ++i, ++j)
+            {
+                thisNode.Keys[i] = pre.Keys[j];
+                thisNode.Values[i] = pre.Values[j];
+            }
+            thisNode.Len += rightShift;
+            pre.Shrink(pre.Len - rightShift);
+        }
+        private static void BorrowFromNext(B3TreeNode<K, V> thisNode, B3TreeNode<K, V> next)
+        {
+            int sumLen = next.Len + thisNode.Len;
+            int leftShift = sumLen / 2 - thisNode.Len;
+            for (int i = thisNode.Len, j = 0; j < leftShift; ++i, ++j)
+            {
+                thisNode.Keys[i] = next.Keys[j];
+                thisNode.Values[i] = next.Values[j];
+            }
+            ArrayShiftLeft(next.Keys, next.Len, leftShift);
+            ArrayShiftLeft(next.Values, next.Len, leftShift);
+            thisNode.Len += leftShift;
+            next.Shrink(next.Len - leftShift);
+        }
+        private static void MergeFromPre(B3TreeNode<K, V> thisNode, B3TreeNode<K, V> pre)
+        {
+            int rightShift = pre.Len;
+            ArrayShiftRight(thisNode.Keys, thisNode.Len, rightShift);
+            ArrayShiftRight(thisNode.Values, thisNode.Len, rightShift);
+            for (int i = 0; i < rightShift; ++i)
+            {
+                thisNode.Keys[i] = pre.Keys[i];
+                thisNode.Values[i] = pre.Values[i];
+            }
+            thisNode.Len += rightShift;
+        }
+        private static void MergeFromNext(B3TreeNode<K, V> thisNode, B3TreeNode<K, V> next)
+        {
+            for (int i = thisNode.Len, j = 0; j < next.Len; ++i, ++j)
+            {
+                thisNode.Keys[i] = next.Keys[j];
+                thisNode.Values[i] = next.Values[j];
+            }
+            thisNode.Len += next.Len;
+        }
+    }
+}
