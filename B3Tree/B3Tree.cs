@@ -310,17 +310,17 @@
         // Right leaf is short.
         private void HandleRightLeafOnDelete(B3TreeNode<K, V> node)
         {
-            if (node.Right!.Len < HALF)
+            if (node.Len < HALF)
             {
                 // merge right child into this node by append
-                MergeFromNext(node, node.Right);
-                _isDB = (node.Right.Color == COLOR.BLACK);
+                MergeFromNext(node, node.Right!);
+                _isDB = (node.Right!.Color == COLOR.BLACK);
                 node.Right = null;
             }
             else
             {
                 // Right leaf borrows from this node
-                BorrowFromPre(node.Right, node);
+                BorrowFromPre(node.Right!, node);
                 _isDB = false;
             }
         }
