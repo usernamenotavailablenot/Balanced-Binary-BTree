@@ -1,18 +1,107 @@
 # Balanced-Binary-BTree
 This is an implementation of Balanced Binary B Tree (B3 Tree), a hybrid of balanced binary search tree and B tree supporting fast search, insertion, and deletion. The idea is from B(+) tree. The lowest level of B(+) tree is a sorted linked list, and a sorted linked list is equivalent to a binary search tree (BST). Then, the lowest level of B(+) tree can be converted to a BST, and the upper levels, which serve as indexes can be discarded. The BST can be balanced by techniques like AVL tree or Red/Black tree. In this implementation, Left Leaning Red Black tree is adopted.
 
-The B3 is similar to BST:
+The B3 has following features from BST:
 - Each node has exactly two children; 
 - Balancing technique is the same.
 
-The B3 is similar to B Tree: 
+The B3 has following features from B Tree: 
 - Each node stores a collection of elements; 
 - Collection has a lower and upper limit; 
 - Insertion and deletion may involve node split and merge.
 
 The advantages of B3: 
-- more space efficient; 
-- more cache friendly.
+- more space efficient, since B3 requires much fewer pointers.
+- more cache friendly, since B3 stores data in arrays.
 
 The run time complexity is obviously `Log(N)` for search, insertion, and deletion. For benchmarking, the attached unit test instantiates 128 B3 trees in a loop with different node capacity. Each B3 is then performed with 100,000 random insertions and deletions. The whole test took around 1 minute in my laptop with Intel(R) Core(TM) i7-3630QM CPU @ 2.40GHz and 8.00 GB Installed DDR3 RAM, which was purchased before 2014.
 
+# Algorithms
+The algorithms have features from both BST and B tree.
+
+## Search
+```
+start from root node
+if left child is not null and search key is less than the least key then:
+	Search the left child recursively
+	done
+end if
+if right child is not null and search key is greater than the greatest key then:
+	Search the right child recursively
+	done
+end if
+binary search in the current node
+return the result
+```
+
+## Insertion
+```
+start from root node
+if left child is not null and search key is less than the least key then:
+	Insertion at the left child recursively
+	fix double red violation
+	done
+end if
+if right child is not null and search key is greater than the greatest key then:
+	Insertion at the right child recursively
+	fix right red violation
+	done
+end if
+binary search in the current node
+if found then:
+	update value
+	done
+end if
+if node is not full then:
+	insert at correct index
+	done
+end if
+create a new node
+move half of the existing key/value pais from current node to the noew node and insert the new key/value pair
+insert the new node into the least of the right subtree
+fix right red violation and double red violation
+```
+
+## Deletion
+```
+start from root node
+if left child is not null and search key is less than the least key then:
+	Deletion at the left child recursively
+	handle deletion at leaf
+	resolve double black
+	fix double black
+	done
+end if
+if right child is not null and search key is greater than the greatest key then:
+	Deletion at the right child recursively
+	handle deletion at leaf
+	resolve double black
+	fix double black
+	done
+end if
+binary search in the current node
+if not found then:
+	do nothing on non-existing key
+	done
+end if
+delete at the correct index
+if elements of current node is not less than the minimum
+	done
+end if
+if the node is leaf then:
+	label to let the parent to handle deletion at leaf
+	done
+end if
+if the node has only one child then:
+	merge or borrow from left child // for left leaning red black tree, the only possiblity is a red leaf at left
+	done
+end if
+if the node has two children:
+	borrow or merge with its successor (minimum of right sub tree)
+	resolve double black
+	done
+end if
+```
+
+## Traversal
+Same as traveral of BST. When visiting each node, visit each element in key array and value array.
