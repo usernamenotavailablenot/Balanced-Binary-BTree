@@ -1,4 +1,5 @@
 ﻿using B3Tree;
+using System.Diagnostics;
 
 namespace UnitTest
 {
@@ -11,7 +12,10 @@ namespace UnitTest
             for (int i = 1; i <= 128; ++i)
             {
                 B3Tree<int, int> b3 = new B3Tree<int, int>(i);
+                Stopwatch sw = Stopwatch.StartNew();
                 TestB3Tree(b3);
+                sw.Stop();
+                Console.WriteLine($"min = '{i}', time spent '{sw.ElapsedMilliseconds}' Milliseconds.");
             }
         }
         private void TestB3Tree(B3Tree<int, int> b3)
