@@ -57,8 +57,8 @@ if node is not full then:
 	done
 end if
 create a new node
-move half of the existing key/value pais from current node to the noew node and insert the new key/value pair
-insert the new node into the least of the right subtree
+move half of the existing key/value pais from current node to the new node and insert the new key/value pair
+insert the new node as the least of the right subtree
 fix right red violation and double red violation
 ```
 
