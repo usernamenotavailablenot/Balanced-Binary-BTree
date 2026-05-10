@@ -1,11 +1,11 @@
 ﻿namespace B3Tree
 {
-    public enum COLOR
+    internal enum COLOR
     {
         RED,
         BLACK
     }
-    public class B3TreeNode<K, V> where K : IComparable
+    internal class B3TreeNode<K, V> where K : IComparable
     {
         public K[] Keys;
         public V[] Values;
@@ -279,7 +279,7 @@
             {
                 // merge right child into this node by append
                 MergeFromNext(node, node.Right!);
-                _isDB = (node.Right!.Color == COLOR.BLACK);
+                _isDB = true; // Right leaf must be BLACK
                 node.Right = null;
             }
             else
