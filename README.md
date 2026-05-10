@@ -14,7 +14,7 @@ The advantages of B3:
 - more space efficient, since B3 requires much fewer pointers.
 - more cache friendly, since B3 stores data in arrays.
 
-The run time complexity is obviously `Log(N)` for search, insertion, and deletion. For benchmarking, the attached unit test instantiates 128 B3 trees in a loop with different node capacity. Each B3 is then performed with 100,000 random insertions and deletions. The whole test took around 1 minute in my laptop with Intel(R) Core(TM) i7-3630QM CPU @ 2.40GHz and 8.00 GB Installed DDR3 RAM, which was purchased before 2014.
+The run time complexity is obviously `Log(N)` for search, insertion, and deletion. For benchmarking, the attached unit test instantiates 128 B3 trees in a loop with different node capacity. Each B3 is then performed with 100,000 random insertions and 100,000 random deletions. The whole test took around 1 minute in my laptop with Intel(R) Core(TM) i7-3630QM CPU @ 2.40GHz and 8.00 GB Installed DDR3 RAM, which was purchased before 2014, with each B3 tree spending 300-600 milliseconds.
 
 # Algorithms
 The algorithms have features from both BST and B tree.

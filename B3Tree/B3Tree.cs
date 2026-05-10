@@ -1,11 +1,11 @@
 ﻿namespace B3Tree
 {
-    public enum COLOR
+    internal enum COLOR
     {
         RED,
         BLACK
     }
-    public class B3TreeNode<K, V> where K : IComparable
+    internal class B3TreeNode<K, V> where K : IComparable
     {
         public K[] Keys;
         public V[] Values;
@@ -80,29 +80,15 @@
             {
                 return GetValueRecur(key, node.Right);
             }
-            int lo = 0;
-            int hi = node.Len - 1;
-            int mid = (lo + hi) / 2;
-            while (true)
+            bool found = false;
+            int idx = FindIndex(node, key, out found);
+            if (found)
             {
-                if (lo > hi)
-                {
-                    throw new IndexOutOfRangeException();
-                }
-                int comp = key.CompareTo(node.Keys[mid]);
-                if (comp == 0)
-                {
-                    return node.Values[mid];
-                }
-                if (comp < 0)
-                {
-                    hi = mid - 1;
-                }
-                if (comp > 0)
-                {
-                    lo = mid + 1;
-                }
-                mid = (lo + hi) / 2;
+                return node.Values[idx];
+            }
+            else
+            {
+                throw new IndexOutOfRangeException();
             }
         }
         private static bool HasValueRecur(K key, B3TreeNode<K, V> node)
@@ -115,30 +101,9 @@
             {
                 return HasValueRecur(key, node.Right);
             }
-            int lo = 0;
-            int hi = node.Len - 1;
-            int mid = (lo + hi) / 2;
-            while (true)
-            {
-                if (lo > hi)
-                {
-                    return false;
-                }
-                int comp = key.CompareTo(node.Keys[mid]);
-                if (comp == 0)
-                {
-                    return true;
-                }
-                if (comp < 0)
-                {
-                    hi = mid - 1;
-                }
-                if (comp > 0)
-                {
-                    lo = mid + 1;
-                }
-                mid = (lo + hi) / 2;
-            }
+            bool found = false;
+            _ = FindIndex(node, key, out found);
+            return found;
         }
         private B3TreeNode<K, V> AddRecur(K key, V value, B3TreeNode<K, V> node)
         {
@@ -314,7 +279,7 @@
             {
                 // merge right child into this node by append
                 MergeFromNext(node, node.Right!);
-                _isDB = (node.Right!.Color == COLOR.BLACK);
+                _isDB = true; // Right leaf must be BLACK
                 node.Right = null;
             }
             else
